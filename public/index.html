@@ -48,7 +48,7 @@ let CG=null;(async()=>{try{if(window.CrazyGames){await CrazyGames.SDK.init();if(
 function save(k,v){localStorage.setItem(k,v);try{CG&&CG.data&&CG.data.setItem(k,v)}catch(e){}}
 function cgSync(){try{if(!CG.data)return;const d=CG.data.getItem('bl_done'),m=CG.data.getItem('bl_n');if(d)Object.assign(done,JSON.parse(d));if(m&&!qs.get('level')&&LV.length&&+m!==n)load(+m)}catch(e){}}
 function cgStart(){try{CG&&CG.game.gameplayStart()}catch(e){}}function cgStop(){try{CG&&CG.game.gameplayStop()}catch(e){}}
-function cgAd(type,done){if(!CG){done(true);return}let fin=false;const end=ok=>{if(!fin){fin=true;cgStart();done(ok)}};cgStop();try{CG.ad.requestAd(type,{adStarted:()=>{},adFinished:()=>end(true),adError:()=>end(type!=='rewarded')})}catch(e){end(type!=='rewarded')}}
+function cgAd(type,done){if(!CG){done(true);return}let fin=false;const end=ok=>{if(!fin){fin=true;cgStart();done(ok)}};cgStop();try{CG.ad.requestAd(type,{adStarted:()=>{},adFinished:()=>end(true),adError:()=>end(true)})}catch(e){end(true)}}
 let wins=0,hintCell=null;
 const OWN=/railway\.app$|bascules|localhost/.test(location.hostname);
 // own site: visitor language; portals: English by default (portal requirement)
