@@ -43,7 +43,10 @@ fr:{go:'Lancer',reset:'Réinitialiser',next:'Niveau suivant',hint:'Touchez les m
 const qs=new URLSearchParams(location.search);
 const API=/railway\.app$|bascules/.test(location.hostname)||location.hostname==='localhost'?'':'https://bascules-production.up.railway.app';
 // CrazyGames SDK: active only on the portal (environment 'crazygames'), inert elsewhere
-let CG=null;(async()=>{try{if(window.CrazyGames){await CrazyGames.SDK.init();if(CrazyGames.SDK.environment!=='disabled')CG=CrazyGames.SDK}}catch(e){}})();
+let CG=null;(async()=>{try{if(window.CrazyGames){await CrazyGames.SDK.init();if(CrazyGames.SDK.environment!=='disabled'){CG=CrazyGames.SDK;cgSync()}}}catch(e){}})();
+// progress save: CrazyGames Data Module on the portal (synced to the player account), localStorage everywhere
+function save(k,v){localStorage.setItem(k,v);try{CG&&CG.data&&CG.data.setItem(k,v)}catch(e){}}
+function cgSync(){try{if(!CG.data)return;const d=CG.data.getItem('bl_done'),m=CG.data.getItem('bl_n');if(d)Object.assign(done,JSON.parse(d));if(m&&!qs.get('level')&&LV.length&&+m!==n)load(+m)}catch(e){}}
 function cgStart(){try{CG&&CG.game.gameplayStart()}catch(e){}}function cgStop(){try{CG&&CG.game.gameplayStop()}catch(e){}}
 function cgAd(type,done){if(!CG){done(true);return}let fin=false;const end=ok=>{if(!fin){fin=true;cgStart();done(ok)}};cgStop();try{CG.ad.requestAd(type,{adStarted:()=>{},adFinished:()=>end(true),adError:()=>end(type!=='rewarded')})}catch(e){end(type!=='rewarded')}}
 let wins=0,hintCell=null;
@@ -58,7 +61,7 @@ function send(k,o){try{navigator.sendBeacon(API+'/e',JSON.stringify(Object.assig
 let LV=[],n=+(qs.get('level')||localStorage.getItem('bl_n')||1),lv,cfg,anim=null,tStart=0,tries=0,done=JSON.parse(localStorage.getItem('bl_done')||'{}');
 const cv=$('c'),cx=cv.getContext('2d');let S=48,O=0,DPR=window.devicePixelRatio||1;
 function layout(){const W=lv.w+2,H=lv.h+2;S=Math.floor(Math.min((Math.min(innerWidth,560)*.96)/W,(innerHeight-230)/H));cv.width=W*S*DPR;cv.height=H*S*DPR;cv.style.width=W*S+'px';cv.style.height=H*S+'px';cx.setTransform(DPR,0,0,DPR,0,0)}
-function load(i){n=Math.max(1,Math.min(LV.length,i));lv=LV[n-1];cfg=lv.toggles.map(()=>0);anim=null;tries=0;tStart=performance.now();localStorage.setItem('bl_n',n);
+function load(i){n=Math.max(1,Math.min(LV.length,i));lv=LV[n-1];cfg=lv.toggles.map(()=>0);anim=null;tries=0;tStart=performance.now();save('bl_n',n);
 $('lv').textContent=t.lvl+' '+n+' / '+LV.length+(done[n]?' ✓':'');$('msg').textContent='';$('next').style.display=done[n]?'inline-block':'none';hintCell=null;if(n<=3)$('msg').textContent=t.tuto;layout();draw();send('start',{n});cgStart()}
 function cell(x,y){return[(x+1)*S,(y+1)*S]}
 function mirror(x,y,m,col,w){const[a,b]=cell(x,y),p=S*.18;cx.strokeStyle=col;cx.lineWidth=w;cx.lineCap='round';cx.beginPath();if(m==='/'){cx.moveTo(a+p,b+S-p);cx.lineTo(a+S-p,b+p)}else{cx.moveTo(a+p,b+p);cx.lineTo(a+S-p,b+S-p)}cx.stroke()}
@@ -82,7 +85,7 @@ function launch(){if(anim)return;tries++;const res=Bascules.simulate(lv,cfg,true
 const st=cfg.slice(),ti={};lv.toggles.forEach((q,i)=>ti[q.y*lv.w+q.x]=i);const eaten=new Set();let k=0,f=0;const sp=Math.max(4,9-Math.floor(pts.length/12));anim=true;
 (function step(){if(k>=pts.length-1){anim=null;finish(res);return}const A=pts[k],B=pts[k+1],u=f/sp;const[a1,b1]=cell(A.x,A.y),[a2,b2]=cell(B.x,B.y);draw([a1+S/2+(a2-a1)*u,b1+S/2+(b2-b1)*u],st,eaten);f++;if(f>sp){f=0;k++;const c=lv.grid[B.y]&&lv.grid[B.y][B.x];if(c==='*')eaten.add(B.y*lv.w+B.x);if(c>='a'&&c<='z')st[ti[B.y*lv.w+B.x]]^=1}requestAnimationFrame(step)})()}
 function finish(res){const secs=Math.round((performance.now()-tStart)/1000);
-if(res.win){if(!done[n]){done[n]=1;localStorage.setItem('bl_done',JSON.stringify(done))}$('msg').textContent=t.win+tries+' / '+secs+' s';$('next').style.display='inline-block';$('lv').textContent=t.lvl+' '+n+' / '+LV.length+' ✓';send('win',{n,tr:tries,s:secs});wins++;cgStop();try{CG&&CG.game.happytime()}catch(e){}draw()}
+if(res.win){if(!done[n]){done[n]=1;save('bl_done',JSON.stringify(done))}$('msg').textContent=t.win+tries+' / '+secs+' s';$('next').style.display='inline-block';$('lv').textContent=t.lvl+' '+n+' / '+LV.length+' ✓';send('win',{n,tr:tries,s:secs});wins++;cgStop();try{CG&&CG.game.happytime()}catch(e){}draw()}
 else{$('msg').textContent=res.crash?t.crash:res.loop?t.loop:res.got<res.stars?t.miss+(res.stars-res.got)+t.stars:t.gate;send('fail',{n,tr:tries});draw()}}
 $('go').onclick=launch;$('reset').onclick=()=>{cfg=lv.toggles.map(()=>0);draw();$('msg').textContent=''};$('next').onclick=()=>{if(wins&&wins%3===0)cgAd('midgame',()=>load(n+1));else load(n+1)};
 $('hintb').onclick=()=>{if(anim)return;const sol=Bascules.solutions(lv,1)[0];if(!sol)return;const wrong=lv.toggles.map((q,i)=>i).filter(i=>cfg[i]!==sol[i]);if(!wrong.length){$('msg').textContent=t.hinted;return}cgAd('rewarded',ok=>{if(!ok)return;const i=wrong[0];cfg[i]=sol[i];hintCell=lv.toggles[i];$('msg').textContent=t.hinted;send('hint',{n});draw()})};$('prev').onclick=()=>load(n-1);
