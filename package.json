@@ -1,0 +1,1 @@
+{ "name": "bascules", "version": "0.1.0", "private": true, "scripts": { "start": "node server.js", "gen": "node gen.js 1000", "verify": "node verify.js" }, "engines": { "node": ">=18" } }

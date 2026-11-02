@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Bascules: flip-mirror logic puzzle, 1000 proven levels</title>
+<meta name="description" content="Set the flip mirrors, launch the ball, collect every star and leave by the gate. Each mirror flips after the ball passes. 1000 levels, each proven to have exactly one solution.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#14110f;--panel:#1f1a16;--ink:#f3e9dc;--dim:#8a7c6d;--amber:#ffb238;--teal:#3fd6c1;--red:#ff5a4e;--wall:#3a312a}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;background:radial-gradient(1200px 600px at 70% -10%,#2a2019 0,transparent 60%),repeating-linear-gradient(0deg,#171310 0 2px,#14110f 2px 4px);color:var(--ink);font-family:'Bricolage Grotesque',Georgia,serif;overflow:hidden;touch-action:manipulation;user-select:none}
+main{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:10px}
+header{display:flex;align-items:baseline;gap:14px;width:min(560px,96vw);justify-content:space-between}
+h1{font-weight:800;font-size:clamp(26px,6vw,40px);letter-spacing:-.03em;line-height:1}
+h1 span{color:var(--amber)}
+.lv{font-family:'JetBrains Mono',monospace;color:var(--dim);font-size:14px}
+canvas{background:var(--panel);border-radius:14px;box-shadow:0 20px 60px #0009,inset 0 0 0 1px #3a312a;max-width:96vw}
+.bar{display:flex;gap:10px}
+button{font:800 16px 'Bricolage Grotesque',Georgia,serif;border:0;border-radius:999px;padding:12px 22px;cursor:pointer;transition:transform .12s}
+button:active{transform:scale(.95)}
+#go{background:var(--amber);color:#1a1208}
+#reset,#prev{background:#2c241e;color:var(--ink)}
+#next{background:var(--teal);color:#06231f;display:none}
+#msg{min-height:22px;font-size:15px;color:var(--dim);text-align:center;max-width:560px}
+.hint{font-size:13px;color:var(--dim);max-width:560px;text-align:center}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Bascu<span>les</span></h1><div class="lv" id="lv"></div></header>
+<canvas id="c"></canvas>
+<div id="msg"></div>
+<div class="bar"><button id="prev">&larr;</button><button id="reset"></button><button id="go"></button><button id="next"></button></div>
+<p class="hint" id="hint"></p>
+</main>
+<script src="engine.js"></script>
+<script>
+const T={en:{go:'Launch',reset:'Reset',next:'Next level',hint:'Tap the amber mirrors to set them. Each one flips after the ball passes through it. Collect every star and leave by the green gate.',win:'Solved! ',crash:'The ball hit a wall.',loop:'The ball is stuck in a loop.',miss:'Missed: ',stars:' star(s) left.',gate:'Wrong exit, aim for the green gate.',lvl:'Level'},
+fr:{go:'Lancer',reset:'Réinitialiser',next:'Niveau suivant',hint:'Touchez les miroirs ambre pour les orienter. Chacun bascule après le passage de la bille. Ramassez toutes les étoiles et sortez par la porte verte.',win:'Résolu ! ',crash:'La bille a heurté un mur.',loop:'La bille tourne en boucle.',miss:'Raté : ',stars:' étoile(s) restante(s).',gate:'Mauvaise sortie, visez la porte verte.',lvl:'Niveau'}};
+const qs=new URLSearchParams(location.search);
+let lang=qs.get('lang')||localStorage.getItem('bl_lang')||((navigator.language||'en').slice(0,2)==='fr'?'fr':'en');if(!T[lang])lang='en';document.documentElement.lang=lang;
+const t=T[lang];
+const $=id=>document.getElementById(id);
+$('go').textContent=t.go;$('reset').textContent=t.reset;$('next').textContent=t.next;$('hint').textContent=t.hint;
+const pid=localStorage.getItem('bl_pid')||(Math.random().toString(36).slice(2)+Date.now().toString(36));localStorage.setItem('bl_pid',pid);
+function send(k,o){try{navigator.sendBeacon('/e',JSON.stringify(Object.assign({k,p:pid,l:lang,src:qs.get('src')||''},o||{})))}catch(e){}}
+let LV=[],n=+(qs.get('level')||localStorage.getItem('bl_n')||1),lv,cfg,anim=null,tStart=0,tries=0,done=JSON.parse(localStorage.getItem('bl_done')||'{}');
+const cv=$('c'),cx=cv.getContext('2d');let S=48,O=0,DPR=window.devicePixelRatio||1;
+function layout(){const W=lv.w+2,H=lv.h+2;S=Math.floor(Math.min((Math.min(innerWidth,560)*.96)/W,(innerHeight-230)/H));cv.width=W*S*DPR;cv.height=H*S*DPR;cv.style.width=W*S+'px';cv.style.height=H*S+'px';cx.setTransform(DPR,0,0,DPR,0,0)}
+function load(i){n=Math.max(1,Math.min(LV.length,i));lv=LV[n-1];cfg=lv.toggles.map(()=>0);anim=null;tries=0;tStart=performance.now();localStorage.setItem('bl_n',n);
+$('lv').textContent=t.lvl+' '+n+' / '+LV.length+(done[n]?' ✓':'');$('msg').textContent='';$('next').style.display=done[n]?'inline-block':'none';layout();draw();send('start',{n})}
+function cell(x,y){return[(x+1)*S,(y+1)*S]}
+function mirror(x,y,m,col,w){const[a,b]=cell(x,y),p=S*.18;cx.strokeStyle=col;cx.lineWidth=w;cx.lineCap='round';cx.beginPath();if(m==='/'){cx.moveTo(a+p,b+S-p);cx.lineTo(a+S-p,b+p)}else{cx.moveTo(a+p,b+p);cx.lineTo(a+S-p,b+S-p)}cx.stroke()}
+function arrow(x,y,d,col){const[a,b]=cell(x,y);cx.save();cx.translate(a+S/2,b+S/2);cx.rotate(d*Math.PI/2);cx.fillStyle=col;cx.beginPath();cx.moveTo(S*.28,0);cx.lineTo(-S*.18,-S*.2);cx.lineTo(-S*.18,S*.2);cx.closePath();cx.fill();cx.restore()}
+function draw(ball,st,eaten){const W=lv.w,H=lv.h;cx.clearRect(0,0,cv.width,cv.height);
+for(let y=0;y<H;y++)for(let x=0;x<W;x++){const[a,b]=cell(x,y);cx.fillStyle=(x+y)%2?'#241e19':'#2a231d';cx.fillRect(a+1,b+1,S-2,S-2)}
+// exit gate
+const ex=lv.exit,gx=ex.x+Bascules.DX[ex.d],gy=ex.y+Bascules.DY[ex.d];const[ga,gb]=cell(gx,gy);cx.fillStyle='#3fd6c133';cx.fillRect(ga+4,gb+4,S-8,S-8);arrow(gx,gy,ex.d,'#3fd6c1');
+arrow(lv.start.x,lv.start.y,lv.start.d,'#ffb238');
+const ti={};lv.toggles.forEach((q,i)=>ti[q.y*W+q.x]=i);
+for(let y=0;y<H;y++)for(let x=0;x<W;x++){const c=lv.grid[y][x],[a,b]=cell(x,y);
+if(c==='#'){cx.fillStyle='#4a3e34';cx.fillRect(a+3,b+3,S-6,S-6);cx.fillStyle='#5c4e42';cx.fillRect(a+3,b+3,S-6,4)}
+else if(c==='*'&&!(eaten&&eaten.has(y*W+x))){cx.fillStyle='#ffe08a';cx.beginPath();for(let k=0;k<10;k++){const r=k%2?S*.13:S*.3,an=k*Math.PI/5-Math.PI/2;cx.lineTo(a+S/2+r*Math.cos(an),b+S/2+r*Math.sin(an))}cx.fill()}
+else if(c==='/'||c==='\\')mirror(x,y,c,'#8a7c6d',S*.09);
+else if(c>='a'&&c<='z'){const i=ti[y*W+x],s=(st||cfg)[i];cx.fillStyle='#ffb23822';cx.beginPath();cx.arc(a+S/2,b+S/2,S*.42,0,7);cx.fill();mirror(x,y,s?'\\':'/','#ffb238',S*.12)}}
+if(ball){cx.fillStyle='#fff';cx.shadowColor='#ffb238';cx.shadowBlur=14;cx.beginPath();cx.arc(ball[0],ball[1],S*.16,0,7);cx.fill();cx.shadowBlur=0}}
+cv.addEventListener('pointerdown',e=>{if(anim)return;const r=cv.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)/S)-1,y=Math.floor((e.clientY-r.top)/S)-1;const i=lv.toggles.findIndex(q=>q.x===x&&q.y===y);if(i>=0){cfg[i]^=1;draw()}});
+function launch(){if(anim)return;tries++;const res=Bascules.simulate(lv,cfg,true);const pts=[{x:lv.start.x,y:lv.start.y}].concat(res.path);if(res.out)pts.push({x:res.out.x+Bascules.DX[res.out.d],y:res.out.y+Bascules.DY[res.out.d]});
+const st=cfg.slice(),ti={};lv.toggles.forEach((q,i)=>ti[q.y*lv.w+q.x]=i);const eaten=new Set();let k=0,f=0;const sp=Math.max(4,9-Math.floor(pts.length/12));anim=true;
+(function step(){if(k>=pts.length-1){anim=null;finish(res);return}const A=pts[k],B=pts[k+1],u=f/sp;const[a1,b1]=cell(A.x,A.y),[a2,b2]=cell(B.x,B.y);draw([a1+S/2+(a2-a1)*u,b1+S/2+(b2-b1)*u],st,eaten);f++;if(f>sp){f=0;k++;const c=lv.grid[B.y]&&lv.grid[B.y][B.x];if(c==='*')eaten.add(B.y*lv.w+B.x);if(c>='a'&&c<='z')st[ti[B.y*lv.w+B.x]]^=1}requestAnimationFrame(step)})()}
+function finish(res){const secs=Math.round((performance.now()-tStart)/1000);
+if(res.win){if(!done[n]){done[n]=1;localStorage.setItem('bl_done',JSON.stringify(done))}$('msg').textContent=t.win+tries+' / '+secs+' s';$('next').style.display='inline-block';$('lv').textContent=t.lvl+' '+n+' / '+LV.length+' ✓';send('win',{n,tr:tries,s:secs});draw()}
+else{$('msg').textContent=res.crash?t.crash:res.loop?t.loop:res.got<res.stars?t.miss+(res.stars-res.got)+t.stars:t.gate;send('fail',{n,tr:tries});draw()}}
+$('go').onclick=launch;$('reset').onclick=()=>{cfg=lv.toggles.map(()=>0);draw();$('msg').textContent=''};$('next').onclick=()=>load(n+1);$('prev').onclick=()=>load(n-1);
+addEventListener('resize',()=>{if(lv){layout();draw()}});
+fetch('levels.json').then(r=>r.json()).then(d=>{LV=d;load(n)});
+</script>
+</body>
+</html>
